@@ -2,7 +2,6 @@ package rss
 
 import (
 	"context"
-	"encoding/xml"
 	"fmt"
 	"io"
 	"log"
@@ -12,21 +11,20 @@ import (
 
 type Client struct {
 	*http.Client
-	Parser                *Parser
-	CurrentRssCollections []*Rss
-	CurrentRssItems       []*Item
-	Sources               []string
+	Processor *Processor
+	RssItems  []*Item
+	Sources   []string
 }
 
 // TODO add config
+// TODO Make sources a map of string to Items
 func NewClient() (*Client, error) {
 	c := &http.Client{}
 	return &Client{
-		Client:                c,
-		Parser:                &Parser{},
-		Sources:               make([]string, 0, 100),
-		CurrentRssCollections: make([]*Rss, 0, 100),
-		CurrentRssItems:       make([]*Item, 0, 500),
+		Client:    c,
+		Processor: &Processor{},
+		RssItems:  make([]*Item, 0, 500),
+		Sources:   make([]string, 0, 100),
 	}, nil
 }
 
@@ -41,7 +39,7 @@ func (c *Client) AddSources(Sources []string) {
 func (c *Client) Refresh() {
 	loopLen := len(c.Sources)
 	byteChan := make(chan []byte, loopLen)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*50)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	// TODO: look up defer
@@ -71,75 +69,19 @@ func (c *Client) Refresh() {
 			// println("ERR")
 			continue
 		}
-		// println(string(bytes))
-		rss, _ := c.xmlToRss(bytes)
-		c.CurrentRssCollections = append(c.CurrentRssCollections, rss)
-		c.CurrentRssItems = append(c.CurrentRssItems, rss.GetItems()...)
+		collection, _ := c.xmlToRss(bytes)
+		c.RssItems = append(c.RssItems, collection.All()...)
 	}
 
 	close(byteChan)
 
-	for _, item := range c.CurrentRssItems {
-		fmt.Println(item.Date + " " + item.Link)
-		fmt.Println(len(c.CurrentRssItems))
+	for i, item := range c.RssItems {
+		fmt.Println(item.Date.String() + " " + item.Link)
+		fmt.Println(i)
 	}
 }
 
-func (c *Client) xmlToRss(bytes []byte) (*Rss, error) {
-	rss, _ := c.Parser.XmlToRss(bytes)
-	return rss, nil
-}
-
-// Parse each xml block into an xml item of all the Rss we want to include
-// Return a slice of rss items for each rss source (this should be dependent on the limit)
-type Parser struct{}
-
-func (p *Parser) XmlToRss(bytes []byte) (*Rss, error) {
-	item := &Rss{}
-	if err := xml.Unmarshal(bytes, &item); err != nil {
-		panic(err)
-	}
-	return item, nil
-}
-
-// TODO: Replace this with an interface so that v1 items and v2 can return their Rss without the need for different structures
-type Rss struct {
-	XMLName xml.Name
-
-	// v2
-	Channel struct {
-		Title string  `xml:"title"`
-		Items []*Item `xml:"item"`
-	} `xml:"channel,omitempty"`
-
-	// v1 TODO: Figure out v1 structures
-	Feed struct {
-		Title string `xml:"title"`
-	} `xml:",any,omitempty"`
-}
-
-// type RssInterperator {
-// 	GetV2Items
-// 	GetV1Items
-// 	GetAtomItems
-// }
-
-// Add Filtering to this message
-func (r *Rss) GetItems() []*Item {
-	return r.Channel.Items
-}
-
-func (r *Rss) GetItemAtIndex(index int) *Item {
-	if index < len(r.Channel.Items) {
-		return &Item{}
-	}
-	return r.Channel.Items[index]
-}
-
-type Item struct {
-	Title       string `xml:"title"`
-	Link        string `xml:"link"`
-	Description string `xml:"description"`
-	Content     string `xml:"content"`
-	Date        string `xml:"pubDate"`
+func (c *Client) xmlToRss(bytes []byte) (*Collection, error) {
+	collection, _ := c.Processor.XmlToRssCollection(bytes)
+	return collection, nil
 }
