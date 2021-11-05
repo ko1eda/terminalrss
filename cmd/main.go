@@ -1,9 +1,9 @@
 package main
 
-import "terminalrss"
+import "terminalrss/rss"
 
 func main() {
-	client, _ := terminalrss.NewClient()
+	client, _ := rss.NewClient()
 	client.AddSources(
 		[]string{
 			"https://xkcd.com/atom.xml",

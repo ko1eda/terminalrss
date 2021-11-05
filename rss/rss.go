@@ -1,4 +1,4 @@
-package terminalrss
+package rss
 
 import (
 	"context"
@@ -12,19 +12,21 @@ import (
 
 type Client struct {
 	*http.Client
-	Parser       *Parser
-	CurrentItems []*Item
-	Sources      []string
+	Parser                *Parser
+	CurrentRssCollections []*Rss
+	CurrentRssItems       []*Item
+	Sources               []string
 }
 
 // TODO add config
 func NewClient() (*Client, error) {
 	c := &http.Client{}
 	return &Client{
-		Client:       c,
-		Parser:       &Parser{},
-		Sources:      make([]string, 0, 100),
-		CurrentItems: make([]*Item, 0, 500),
+		Client:                c,
+		Parser:                &Parser{},
+		Sources:               make([]string, 0, 100),
+		CurrentRssCollections: make([]*Rss, 0, 100),
+		CurrentRssItems:       make([]*Item, 0, 500),
 	}, nil
 }
 
@@ -39,9 +41,10 @@ func (c *Client) AddSources(Sources []string) {
 func (c *Client) Refresh() {
 	loopLen := len(c.Sources)
 	byteChan := make(chan []byte, loopLen)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
-	defer cancel() // TODO: look up defer
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*50)
+	defer cancel()
 
+	// TODO: look up defer
 	for _, url := range c.Sources {
 		go func(url string) {
 			resp, err := c.Get(url)
@@ -65,38 +68,42 @@ func (c *Client) Refresh() {
 		bytes := <-byteChan
 		// if we have an empty grouping of bytes we just ignore it
 		if string(bytes) == "" {
+			// println("ERR")
 			continue
 		}
-		c.parse(bytes)
+		// println(string(bytes))
+		rss, _ := c.xmlToRss(bytes)
+		c.CurrentRssCollections = append(c.CurrentRssCollections, rss)
+		c.CurrentRssItems = append(c.CurrentRssItems, rss.GetItems()...)
 	}
 
 	close(byteChan)
 
-	for _, item := range c.CurrentItems {
-		fmt.Println(item.Date + " " + item.Description)
+	for _, item := range c.CurrentRssItems {
+		fmt.Println(item.Date + " " + item.Link)
+		fmt.Println(len(c.CurrentRssItems))
 	}
 }
 
-func (c *Client) parse(bytes []byte) error {
-	rssContent, _ := c.Parser.ParseXMLBytes(bytes)
-	c.CurrentItems = append(c.CurrentItems, rssContent.GetItemCollection()...)
-	return nil
+func (c *Client) xmlToRss(bytes []byte) (*Rss, error) {
+	rss, _ := c.Parser.XmlToRss(bytes)
+	return rss, nil
 }
 
-// Parse each xml block into an xml item of all the data we want to include
+// Parse each xml block into an xml item of all the Rss we want to include
 // Return a slice of rss items for each rss source (this should be dependent on the limit)
 type Parser struct{}
 
-func (p *Parser) ParseXMLBytes(bytes []byte) (*Content, error) {
-	item := &Content{}
+func (p *Parser) XmlToRss(bytes []byte) (*Rss, error) {
+	item := &Rss{}
 	if err := xml.Unmarshal(bytes, &item); err != nil {
 		panic(err)
 	}
 	return item, nil
 }
 
-// TODO: Replace this with an interface so that v1 items and v2 can return their data without the need for different structures
-type Content struct {
+// TODO: Replace this with an interface so that v1 items and v2 can return their Rss without the need for different structures
+type Rss struct {
 	XMLName xml.Name
 
 	// v2
@@ -111,13 +118,28 @@ type Content struct {
 	} `xml:",any,omitempty"`
 }
 
+// type RssInterperator {
+// 	GetV2Items
+// 	GetV1Items
+// 	GetAtomItems
+// }
+
+// Add Filtering to this message
+func (r *Rss) GetItems() []*Item {
+	return r.Channel.Items
+}
+
+func (r *Rss) GetItemAtIndex(index int) *Item {
+	if index < len(r.Channel.Items) {
+		return &Item{}
+	}
+	return r.Channel.Items[index]
+}
+
 type Item struct {
 	Title       string `xml:"title"`
+	Link        string `xml:"link"`
 	Description string `xml:"description"`
 	Content     string `xml:"content"`
 	Date        string `xml:"pubDate"`
-}
-
-func (c *Content) GetItemCollection() []*Item {
-	return c.Channel.Items
 }
