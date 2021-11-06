@@ -1,6 +1,8 @@
 package main
 
-import "terminalrss/rss"
+import (
+	"terminalrss/rss"
+)
 
 func main() {
 	client, _ := rss.NewClient()
@@ -12,6 +14,8 @@ func main() {
 			"https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best",
 		},
 	)
-	client.Refresh()
-	//TODO build tui
+	client.LoadAll()
+
+	// fmt.Println("%v", client.ListSources())
+	// client.Refresh()
 }
