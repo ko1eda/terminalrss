@@ -36,6 +36,7 @@ func (p *Processor) XmlToRssCollection(bytes []byte) (*Collection, error) {
 			Link:        v2Item.Link,
 			Description: v2Item.Description,
 			Content:     v2Item.Content,
+			Creator:     v2Item.Creator,
 			Date:        formatTime(v2Item.Date),
 		}
 		collection.Items = append(collection.Items, item)
@@ -47,6 +48,7 @@ func (p *Processor) XmlToRssCollection(bytes []byte) (*Collection, error) {
 			Title:       atomItem.Title,
 			Link:        atomItem.Link,
 			Description: atomItem.Description,
+			Creator:     atomItem.Creator,
 			Date:        formatTime(atomItem.Updated),
 		}
 
@@ -76,6 +78,7 @@ type Item struct {
 	Link        string
 	Description string
 	Content     string
+	Creator     string
 }
 
 type Collection struct {
@@ -115,6 +118,7 @@ type rss struct {
 			Link        string `xml:"link"`
 			Description string `xml:"description"`
 			Content     string `xml:"content,omitempty"`
+			Creator     string `xml:"creator"`
 			Date        v2Time `xml:"pubDate,omitempty"`
 		} `xml:"item"`
 	} `xml:"channel,omitempty"`
@@ -125,6 +129,7 @@ type rss struct {
 		Link        string   `xml:"id"`
 		Description string   `xml:"description"`
 		Content     string   `xml:"content"`
+		Creator     string   `xml:"author>name"`
 		Summary     string   `xml:"summary"`
 		Published   atomTime `xml:"published"`
 		Updated     atomTime `xml:"updated"`
