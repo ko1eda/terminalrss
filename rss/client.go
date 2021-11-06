@@ -88,20 +88,21 @@ func (c *Client) ListSources() []string {
 }
 
 // Returns the internal Feed type.
-// This Should be used after at least one call to Refresh, Load or Load All
+// This Should be used after at least one call to Refresh, Load or LoadAll
 func (c *Client) Feed() Feed {
 	return c.feed
 }
 
-// Sort internal Feed by the given SortOrder and return the internal feed
+// Sort internal Feed by the given SortOrder and return the feed
 func (c *Client) SortFeed(order SortOrder) Feed {
+	c.SortOrder = order
 	c.feed.SortBy(order)
-
 	return c.Feed()
 }
 
-// Load RSS Feed Items into the clients Feed from A given source or sources. If no sources given this loads all sources
-// Can can use this as a subslice from ListSources to load only from specific sources
+// Load RSS Feed Items into the clients Feed from a given source or sources.
+// If no sources given this loads all sources.
+// We can use this as a subslice from ListSources to load only from specific sources
 func (c *Client) Load(sources []string) Feed {
 	if len(sources) < 1 {
 		return c.LoadAll()
