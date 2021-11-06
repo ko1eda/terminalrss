@@ -5,7 +5,8 @@
 + Remove collection type from processor and have it return Feed type
 + Tests
 + Support FOR RSS V1 
-+ TUI
++ TUI (might need viper as well -- look into this)
++ Create or add thread safe logger 
 + Normalize More fields from rss 
 
 
