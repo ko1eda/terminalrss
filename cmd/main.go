@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"terminalrss/rss"
 )
 
@@ -14,8 +15,13 @@ func main() {
 			"https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best",
 		},
 	)
-	client.LoadAll()
+	// Remove sources 1 and 2
+	client.RemoveSources(client.ListSources()[1:3])
 
-	// fmt.Println("%v", client.ListSources())
-	// client.Refresh()
+	// Load sources 0 and 3
+	feed := client.Load(client.ListSources())
+
+	for _, item := range feed {
+		fmt.Printf("\n\n%s \n%s \n%s \n\n", item.Date.String(), item.Title, item.Description)
+	}
 }

@@ -13,17 +13,8 @@ const (
 	V2
 )
 
-// Manager
-// Processor
-// http
-// file
-// AddSource
-// DeleteSource
-// ParseAll
-// ParseSource
-
-// Parse each xml block into an xml item of all the Rss we want to include
-// Return a slice of rss items for each rss source (this should be dependent on the limit)
+// Processor processess RSS XML from Atom and V2 Rss Feed Sources and returns an Rss Feed
+// which is a slice Rss Items that was parsed from a given source
 type Processor struct{}
 
 // This returns an rss collection. This is a collection of parsed xml body data from a given source
@@ -139,8 +130,6 @@ type rss struct {
 		Updated     atomTime `xml:"updated"`
 	} `xml:"entry"`
 }
-
-// The xml base conversion model for V2 RSS Items
 
 type v2Time time.Time
 
