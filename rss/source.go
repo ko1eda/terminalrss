@@ -9,7 +9,7 @@ const (
 	FILE
 )
 
-// Path can be the path to an xml file relative to the project root
+// Path can be the path to an xml file relative to the Rss Clients StorageRoot.
 // It can also be an http source from a websites rss feed.
 // Title is the name of the source or a nickname.
 type Source struct {
@@ -38,7 +38,7 @@ func MapToSources(sources map[string]string) []*Source {
 }
 
 // Create a New Rss Source to add to the client.
-// This can be a file path relative to the project root or an http source
+// This can be a file path relative to the StorageRoot or an http source
 func NewSource(path string, title string, sourceType SourceType) (*Source, error) {
 	return &Source{Type: sourceType, Path: path, Title: title}, nil
 }
