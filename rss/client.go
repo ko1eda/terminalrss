@@ -5,30 +5,41 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 )
 
 type Client struct {
 	*http.Client
-	HasSources  bool
-	Processor   *Processor
-	feed        Feed
-	SortOrder   SortOrder
-	sourceSlice []*Source
-	Sources     map[string]*Source
+	HasSources   bool
+	Processor    *Processor
+	SortOrder    SortOrder
+	feed         Feed
+	DocumentRoot string
+	sourceSlice  []*Source
+	Sources      map[string]*Source
 }
 
 // TODO: add config
 func NewClient() (*Client, error) {
+	homedir, err := os.UserHomeDir()
+
+	// todo log file
+	if err != nil {
+		return nil, err
+	}
+
 	c := &http.Client{}
 	return &Client{
-		Client:      c,
-		Processor:   &Processor{},
-		feed:        Feed(make([]*Item, 0, 100)),
-		sourceSlice: make([]*Source, 0, 100),
-		Sources:     make(map[string]*Source, 100),
-		HasSources:  false,
-		SortOrder:   DATE_DSC,
+		Client:       c,
+		Processor:    &Processor{},
+		feed:         Feed(make([]*Item, 0, 100)),
+		sourceSlice:  make([]*Source, 0, 100),
+		DocumentRoot: filepath.Join(homedir, "terminalrss", "xml"),
+		Sources:      make(map[string]*Source, 100),
+		HasSources:   false,
+		SortOrder:    DATE_DSC,
 	}, nil
 }
 
@@ -55,6 +66,10 @@ func (c *Client) AddSources(sources []*Source) {
 	}
 
 	c.Sources = m
+}
+
+func (c *Client) AddDocumentRoot(path string) {
+	c.DocumentRoot = path
 }
 
 // Removes any number of sources from the client
@@ -135,24 +150,46 @@ func (c *Client) load(sources []*Source) Feed {
 
 	// TODO: log error to threadsafe logger
 	for _, source := range sources {
-		go func(source *Source) {
-			resp, err := c.Get(source.Path)
-			if err != nil {
-				log.Fatal(err)
-				// cancel() // we would only want to call this here if we immediately want to cancel all calls (we would only do this on fatal error otherwise logging is fine)
-			}
-			bytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				log.Fatal(err)
-			}
-			select {
-			case byteChan <- bytes:
-				sourceChan <- source
-			case <-ctx.Done():
-				// Send blank bytes into our channel so we don't read forever
-				byteChan <- []byte("")
-			}
-		}(source)
+		switch source.Type {
+		case HTTP:
+			go func(source *Source) {
+				resp, err := c.Get(source.Path)
+				if err != nil {
+					log.Fatal(err)
+				}
+				bytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					log.Fatal(err)
+				}
+				select {
+				case byteChan <- bytes:
+					sourceChan <- source
+				case <-ctx.Done():
+					// Send blank bytes into our channel so we don't read forever
+					byteChan <- []byte("")
+				}
+			}(source)
+		case FILE:
+			go func(source *Source) {
+				file, err := os.Open(filepath.Join(c.DocumentRoot, source.Path))
+				if err != nil {
+					log.Fatal(err) // add threadsafe logger
+				}
+				bytes, err := io.ReadAll(file)
+				if err != nil {
+					log.Fatal(err)
+				}
+				if err := file.Close(); err != nil {
+					log.Fatal(err)
+				}
+				select {
+				case byteChan <- bytes:
+					sourceChan <- source
+				case <-ctx.Done():
+					byteChan <- []byte("")
+				}
+			}(source)
+		}
 	}
 
 	for i := loopLen; i > 0; i-- {
