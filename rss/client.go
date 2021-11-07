@@ -15,7 +15,7 @@ type Client struct {
 	feed        Feed
 	SortOrder   SortOrder
 	sourceSlice []string
-	Sources     map[string][]*Item
+	Sources     map[string]struct{}
 }
 
 // TODO: add config
@@ -26,7 +26,7 @@ func NewClient() (*Client, error) {
 		Processor:   &Processor{},
 		feed:        Feed(make([]*Item, 0, 100)),
 		sourceSlice: make([]string, 0, 100),
-		Sources:     make(map[string][]*Item, 100),
+		Sources:     make(map[string]struct{}, 100),
 		HasSources:  false,
 		SortOrder:   DATE_DSC,
 	}, nil
@@ -37,7 +37,7 @@ func (c *Client) AddSources(sources []string) {
 	m := c.Sources
 
 	if !c.HasSources {
-		m = make(map[string][]*Item, 100)
+		m = make(map[string]struct{}, 100)
 		c.HasSources = true
 	}
 
@@ -51,7 +51,7 @@ func (c *Client) AddSources(sources []string) {
 		// creat a new rss item slice that we will
 		// use when we load rss items
 		c.sourceSlice = append(c.sourceSlice, source)
-		m[source] = make([]*Item, 0, 100)
+		m[source] = struct{}{}
 	}
 
 	c.Sources = m
