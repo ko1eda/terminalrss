@@ -10,15 +10,16 @@ import (
 	"time"
 )
 
+// Client represents an Rss Client instance
+// It can connect to web and xml file sources to load Rss Feeds
+// It currently works with Atom Rss Feeds and V2 Rss Feeds.
 type Client struct {
-	*http.Client
-	HasSources  bool
-	Processor   *Processor
-	SortOrder   SortOrder
-	feed        Feed
-	StorageRoot string
-	sourceSlice []*Source
-	Sources     map[string]*Source
+	StorageRoot  string
+	SortOrder    SortOrder
+	Processor    *Processor
+	SourceMapper *SourceMapper
+	HttpClient   *http.Client
+	feed         Feed
 }
 
 // New Client configures an Rss Client with sensible defaults.
@@ -30,42 +31,16 @@ func NewClient() (*Client, error) {
 		return nil, err // TODO: Log to file
 	}
 	c := &http.Client{}
+	s, _ := NewSourceMapper()
 	storageRoot := filepath.Join(homedir, "terminalrss", "xml")
 	return &Client{
-		Client:      c,
-		Processor:   &Processor{},
-		feed:        Feed(make([]*Item, 0, 100)),
-		sourceSlice: make([]*Source, 0, 100),
-		StorageRoot: storageRoot,
-		Sources:     make(map[string]*Source, 100),
-		HasSources:  false,
-		SortOrder:   DATE_DSC,
+		Processor:    &Processor{},
+		HttpClient:   c,
+		SourceMapper: s,
+		feed:         Feed(make([]*Item, 0, 100)),
+		StorageRoot:  storageRoot,
+		SortOrder:    DATE_DSC,
 	}, nil
-}
-
-// Add sources to client to load Rss data from
-func (c *Client) AddSources(sources []*Source) {
-	m := c.Sources
-
-	if !c.HasSources {
-		m = make(map[string]*Source, 100)
-		c.HasSources = true
-	}
-
-	for _, source := range sources {
-		_, hit := m[source.Path]
-
-		if hit {
-			continue
-		}
-		// If the source isn't in our map of sources
-		// creat a new rss item slice that we will
-		// use when we load rss items
-		c.sourceSlice = append(c.sourceSlice, source)
-		m[source.Path] = source
-	}
-
-	c.Sources = m
 }
 
 // This updates the clients StorageRoot.
@@ -74,34 +49,25 @@ func (c *Client) AddStorageRoot(path string) {
 	c.StorageRoot = path
 }
 
+// Add sources to client to load Rss data from
+func (c *Client) AddSources(sources []*Source) {
+	c.SourceMapper.AddSources(sources)
+}
+
 // Removes any number of sources from the client
 func (c *Client) RemoveSources(sources []*Source) {
-	for _, source := range sources {
-		_, hit := c.Sources[source.Path]
-
-		if !hit {
-			continue
-		}
-
-		delete(c.Sources, source.Path)
-	}
-
-	// If someone passed in a nil slice or empty slice
-	// there is no need to recreate the source slice
-	if len(sources) < 1 {
-		return
-	}
-	// Here we replace source slices with whatever sources are left in the map
-	c.sourceSlice = make([]*Source, 0, len(c.Sources))
-
-	for _, source := range c.Sources {
-		c.sourceSlice = append(c.sourceSlice, source)
-	}
+	c.SourceMapper.RemoveSources(sources)
 }
 
 // Returns a slice of all Rss sources the Client contains
 func (c *Client) ListSources() []*Source {
-	return c.sourceSlice
+	return c.SourceMapper.ListSources()
+}
+
+// Find a given source by path or title
+// Returns true if we have hit and miss with an empty source if we don't have a match
+func (c *Client) FindSource(target string) (*Source, bool) {
+	return c.SourceMapper.FindSource(target)
 }
 
 // Returns the internal Feed type.
@@ -155,7 +121,7 @@ func (c *Client) load(sources []*Source) Feed {
 		switch source.Type {
 		case HTTP:
 			go func(source *Source) {
-				resp, err := c.Get(source.Path)
+				resp, err := c.HttpClient.Get(source.Path)
 				if err != nil {
 					log.Fatal(err)
 				}
