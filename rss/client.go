@@ -128,14 +128,15 @@ func (c *Client) load(sources []*Source) Feed {
 
 	loopLen := len(sources)
 	byteChan := make(chan []byte, loopLen)
+	sourceChan := make(chan *Source, loopLen)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	// TODO: log error to threadsafe logger
 	for _, source := range sources {
-		go func(url string) {
-			resp, err := c.Get(url)
+		go func(source *Source) {
+			resp, err := c.Get(source.Path)
 			if err != nil {
 				log.Fatal(err)
 				// cancel() // we would only want to call this here if we immediately want to cancel all calls (we would only do this on fatal error otherwise logging is fine)
@@ -146,11 +147,12 @@ func (c *Client) load(sources []*Source) Feed {
 			}
 			select {
 			case byteChan <- bytes:
+				sourceChan <- source
 			case <-ctx.Done():
-				// Send blank bytes into our channel so we don't read forever from our channel
+				// Send blank bytes into our channel so we don't read forever
 				byteChan <- []byte("")
 			}
-		}(source.Path)
+		}(source)
 	}
 
 	for i := loopLen; i > 0; i-- {
@@ -160,16 +162,19 @@ func (c *Client) load(sources []*Source) Feed {
 			continue
 		}
 
-		collection, _ := c.xmlToRss(bytes)
-		c.feed = append(c.feed, collection.All()...)
+		feed := c.xmlToRssFeed(bytes)
+		feed.AddSource(<-sourceChan)
+		c.feed = append(c.feed, feed...)
 	}
+
 	close(byteChan)
+	close(sourceChan)
 
 	return c.SortFeed(c.SortOrder)
 }
 
 // Calls the Rss Processors conversion method under the hood
-func (c *Client) xmlToRss(bytes []byte) (*Collection, error) {
-	collection, _ := c.Processor.XmlToRssCollection(bytes)
-	return collection, nil
+func (c *Client) xmlToRssFeed(bytes []byte) Feed {
+	feed, _ := c.Processor.XmlToRssFeed(bytes)
+	return feed
 }

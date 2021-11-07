@@ -17,17 +17,15 @@ const (
 // which is a slice Rss Items that was parsed from a given source
 type Processor struct{}
 
-// This returns an rss collection. This is a collection of parsed xml body data from a given source
-func (p *Processor) XmlToRssCollection(bytes []byte) (*Collection, error) {
+// This returns an rss feed. This is a feed of parsed xml body data from a given source
+func (p *Processor) XmlToRssFeed(bytes []byte) (Feed, error) {
 	converted := &rss{}
 
 	if err := xml.Unmarshal(bytes, &converted); err != nil {
 		panic(err)
 	}
 
-	collection := &Collection{
-		Items: make([]*Item, 0, len(converted.Items)+len(converted.Channel.Items)),
-	}
+	feed := Feed(make([]*Item, 0, len(converted.Items)+len(converted.Channel.Items)))
 
 	for _, v2Item := range converted.Channel.Items {
 		item := &Item{
@@ -39,7 +37,7 @@ func (p *Processor) XmlToRssCollection(bytes []byte) (*Collection, error) {
 			Creator:     v2Item.Creator,
 			Date:        formatTime(v2Item.Date),
 		}
-		collection.Items = append(collection.Items, item)
+		feed = append(feed, item)
 	}
 
 	for _, atomItem := range converted.Items {
@@ -64,14 +62,15 @@ func (p *Processor) XmlToRssCollection(bytes []byte) (*Collection, error) {
 			item.Date = formatTime(atomItem.Published)
 		}
 
-		collection.Items = append(collection.Items, item)
+		feed = append(feed, item)
 	}
 
-	return collection, nil
+	return feed, nil
 }
 
 // Normalized Rss Item
 type Item struct {
+	Source      *Source
 	Type        RssType
 	Date        formatTime
 	Title       string
@@ -81,32 +80,12 @@ type Item struct {
 	Creator     string
 }
 
-type Collection struct {
-	Items []*Item
-}
-
-// Add Filtering to this message
-func (c *Collection) All() []*Item {
-	return c.Items
-}
-
-func (c *Collection) ItemAtIndex(index int) *Item {
-	items := c.All()
-
-	if index < len(items) {
-		return &Item{}
-	}
-
-	return items[index]
-}
-
 type formatTime time.Time
 
 func (t *formatTime) String() string {
 	return time.Time(*t).Format("01/02/2006")
 }
 
-// TODO: Replace this with an interface so that v1 items and v2 can return their Rss without the need for different structures
 type rss struct {
 	XMLName xml.Name
 
@@ -139,33 +118,37 @@ type rss struct {
 type v2Time time.Time
 
 func (t *v2Time) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
-	// this format is the format the rss reader dates are being returned as
 	const shortForm = time.RFC1123
 	var v string
 
 	d.DecodeElement(&v, &start)
 	parse, err := time.Parse(shortForm, v)
+
+	// Try another time format without the prefix on the day of the month
 	if err != nil {
-		return err
+		// TODO: LOG ERROR
+		parse, _ = time.Parse("Mon, _2 Jan 2006 15:04:05 MST", v)
 	}
 
 	*t = v2Time(parse)
+
 	return nil
 }
 
 type atomTime time.Time
 
 func (t *atomTime) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
-	// this format is the format the rss reader dates are being returned as
 	const shortForm = time.RFC3339
 	var v string
 
 	d.DecodeElement(&v, &start)
 	parse, err := time.Parse(shortForm, v)
+
 	if err != nil {
 		return err
 	}
 
 	*t = atomTime(parse)
+
 	return nil
 }

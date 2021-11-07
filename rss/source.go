@@ -10,26 +10,24 @@ const (
 )
 
 // Path can be the path to an xml file relative to the project root
-// It can also be an http source from a websites rss feed
+// It can also be an http source from a websites rss feed.
+// Title is the name of the source or a nickname.
 type Source struct {
-	Type SourceType
-	Path string
+	Type  SourceType
+	Path  string
+	Title string
 }
 
-// Create a New Rss Source to add to the client.
-// This can be a file path relative to the project root or an http source
-func NewSource(p string, t SourceType) (*Source, error) {
-	return &Source{Type: t, Path: p}, nil
-}
-
-// StringToSource converts a list of string sources to Rss sources
-// It will automatically determine if the link is an http source or a file
-func StringsToSources(sources []string) []*Source {
+// MapToSources converts a map of schmea path : title
+// To a source of one of the above source types.
+// Sources type are configured automatically,
+// If the type is guessed incorrectly you can adjust its Type field manually.
+func MapToSources(sources map[string]string) []*Source {
 	s := make([]*Source, 0, len(sources))
 
-	for _, source := range sources {
-		temp, _ := NewSource(source, FILE)
-		if strings.HasPrefix(source, "http") {
+	for source, title := range sources {
+		temp, _ := NewSource(source, title, FILE)
+		if strings.HasPrefix(strings.ToLower(source), "http") {
 			temp.Path = source
 			temp.Type = HTTP
 		}
@@ -37,4 +35,10 @@ func StringsToSources(sources []string) []*Source {
 	}
 
 	return s
+}
+
+// Create a New Rss Source to add to the client.
+// This can be a file path relative to the project root or an http source
+func NewSource(path string, title string, sourceType SourceType) (*Source, error) {
+	return &Source{Type: sourceType, Path: path, Title: title}, nil
 }

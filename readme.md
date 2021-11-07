@@ -3,13 +3,13 @@
 + Add author field [x]
 + Add Source as own type to support both http sources and file types sources [x]
 + Move Load http call to own method that Load method calls only if the source is an http source
-+ Remove collection type from processor and have it return Feed type
++ Remove collection type from processor and have it return Feed type [x]
 + Tests
 + Support FOR RSS V1 
 + TUI (might need viper as well -- look into this)
 + Create or add thread safe logger 
-+ Normalize More fields from rss 
-+ Validate StringsToSources method better 
++ Normalize More fields from rss [x]
++ Validate MapToSource method better 
 
 
 ## Potential TODO
