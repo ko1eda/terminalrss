@@ -14,8 +14,8 @@ type Client struct {
 	Processor   *Processor
 	feed        Feed
 	SortOrder   SortOrder
-	sourceSlice []string
-	Sources     map[string]struct{}
+	sourceSlice []*Source
+	Sources     map[string]*Source
 }
 
 // TODO: add config
@@ -25,24 +25,24 @@ func NewClient() (*Client, error) {
 		Client:      c,
 		Processor:   &Processor{},
 		feed:        Feed(make([]*Item, 0, 100)),
-		sourceSlice: make([]string, 0, 100),
-		Sources:     make(map[string]struct{}, 100),
+		sourceSlice: make([]*Source, 0, 100),
+		Sources:     make(map[string]*Source, 100),
 		HasSources:  false,
 		SortOrder:   DATE_DSC,
 	}, nil
 }
 
 // Add sources to client to load Rss data from
-func (c *Client) AddSources(sources []string) {
+func (c *Client) AddSources(sources []*Source) {
 	m := c.Sources
 
 	if !c.HasSources {
-		m = make(map[string]struct{}, 100)
+		m = make(map[string]*Source, 100)
 		c.HasSources = true
 	}
 
 	for _, source := range sources {
-		_, hit := m[source]
+		_, hit := m[source.Path]
 
 		if hit {
 			continue
@@ -51,22 +51,22 @@ func (c *Client) AddSources(sources []string) {
 		// creat a new rss item slice that we will
 		// use when we load rss items
 		c.sourceSlice = append(c.sourceSlice, source)
-		m[source] = struct{}{}
+		m[source.Path] = source
 	}
 
 	c.Sources = m
 }
 
 // Removes any number of sources from the client
-func (c *Client) RemoveSources(sources []string) {
+func (c *Client) RemoveSources(sources []*Source) {
 	for _, source := range sources {
-		_, hit := c.Sources[source]
+		_, hit := c.Sources[source.Path]
 
 		if !hit {
 			continue
 		}
 
-		delete(c.Sources, source)
+		delete(c.Sources, source.Path)
 	}
 
 	// If someone passed in a nil slice or empty slice
@@ -75,15 +75,15 @@ func (c *Client) RemoveSources(sources []string) {
 		return
 	}
 	// Here we replace source slices with whatever sources are left in the map
-	c.sourceSlice = make([]string, 0, len(c.Sources))
+	c.sourceSlice = make([]*Source, 0, len(c.Sources))
 
-	for source := range c.Sources {
+	for _, source := range c.Sources {
 		c.sourceSlice = append(c.sourceSlice, source)
 	}
 }
 
 // Returns a slice of all Rss sources the Client contains
-func (c *Client) ListSources() []string {
+func (c *Client) ListSources() []*Source {
 	return c.sourceSlice
 }
 
@@ -103,7 +103,7 @@ func (c *Client) SortFeed(order SortOrder) Feed {
 // Load RSS Feed Items into the clients Feed from a given source or sources.
 // If no sources given this loads all sources.
 // We can use this as a subslice from ListSources to load only from specific sources
-func (c *Client) Load(sources []string) Feed {
+func (c *Client) Load(sources []*Source) Feed {
 	if len(sources) < 1 {
 		return c.LoadAll()
 	}
@@ -121,7 +121,7 @@ func (c *Client) LoadAll() Feed {
 }
 
 // Internal method used to load sources asynchronously from a number of sources
-func (c *Client) load(sources []string) Feed {
+func (c *Client) load(sources []*Source) Feed {
 	if len(sources) < 1 {
 		sources = c.ListSources()
 	}
@@ -133,7 +133,7 @@ func (c *Client) load(sources []string) Feed {
 	defer cancel()
 
 	// TODO: log error to threadsafe logger
-	for _, url := range sources {
+	for _, source := range sources {
 		go func(url string) {
 			resp, err := c.Get(url)
 			if err != nil {
@@ -150,7 +150,7 @@ func (c *Client) load(sources []string) Feed {
 				// Send blank bytes into our channel so we don't read forever from our channel
 				byteChan <- []byte("")
 			}
-		}(url)
+		}(source.Path)
 	}
 
 	for i := loopLen; i > 0; i-- {
